@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pedidos activos — La Mesa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="header__left">
+      <span class="header__mark">◈</span>
+      <span class="header__title">Pedidos activos</span>
+      <span class="realtime-dot" id="realtime-dot"></span>
+    </div>
+    <div class="header__stats" id="header-stats">
+      <span class="hstat" id="hstat-total">0 pedidos</span>
+      <span class="hstat hstat--warn" id="hstat-pendientes">0 pendientes</span>
+      <span class="hstat hstat--info" id="hstat-prep">0 en prep.</span>
+      <span class="hstat hstat--ok" id="hstat-listos">0 listos</span>
+    </div>
+  </header>
+
+  <!-- Barra de búsqueda y filtros -->
+  <div class="toolbar">
+    <input
+      type="search"
+      class="toolbar__search"
+      id="search-input"
+      placeholder="Buscar por mesa, cliente o #id…"
+    />
+    <div class="toolbar__filters" id="estado-filters">
+      <button class="filter-pill active" data-estado="todos">Todos</button>
+      <button class="filter-pill" data-estado="pendiente">Pendiente</button>
+      <button class="filter-pill" data-estado="en preparacion">En prep.</button>
+      <button class="filter-pill" data-estado="listo">Listo</button>
+    </div>
+  </div>
+
+  <!-- Lista de pedidos -->
+  <main class="pedidos-list" id="pedidos-list" aria-live="polite"></main>
+
+  <!-- Estado vacío -->
+  <div class="empty" id="empty-state" hidden>
+    <p class="empty__icon">▣</p>
+    <p class="empty__text">Sin pedidos activos</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
