@@ -19,33 +19,36 @@ const miPedido = data.find(p => p.id === pedidoActual)
 
 const miPosicionEl = document.getElementById('mi-posicion')
 
-// 👉 Si mi pedido no existe
 if (!miPedido) {
   miPosicionEl.textContent = ''
-  return
-}
-
-// 👉 Si ya fue entregado
-if (miPedido.estado === 'entregado' || miPedido.estado === 'listo') {
-  miPosicionEl.textContent = '✅ Tu pedido ya fue entregado'
-  return
-}
-
-// 👉 Si aún está en proceso
-const indexGlobal = pendientes.findIndex(p => p.id === pedidoActual)
-
-if (indexGlobal !== -1) {
-  const pedidosAntes = pendientes
-    .filter(p => new Date(p.created_at) < new Date(miPedido.created_at))
-    .length
-
-  if (pedidosAntes === 0) {
-    miPosicionEl.textContent = '🔥 ¡Tu pedido es el siguiente!'
-  } else {
-    miPosicionEl.textContent = `Hay ${pedidosAntes} pedidos antes que el tuyo`
-  }
 } else {
-  miPosicionEl.textContent = ''
+
+  if (miPedido.estado === 'entregado') {
+    miPosicionEl.textContent = '✅ Tu pedido ya fue entregado'
+  }
+
+  else if (miPedido.estado === 'listo') {
+    miPosicionEl.textContent = '📢 ¡Tu pedido está listo! Puedes recogerlo'
+  }
+
+  else {
+    const indexGlobal = pendientes.findIndex(p => p.id === pedidoActual)
+
+    if (indexGlobal !== -1) {
+      const pedidosAntes = pendientes
+        .filter(p => new Date(p.created_at) < new Date(miPedido.created_at))
+        .length
+
+      if (pedidosAntes === 0) {
+        miPosicionEl.textContent = '🔥 ¡Tu pedido es el siguiente!'
+      } else {
+        miPosicionEl.textContent = `Hay ${pedidosAntes} pedidos antes que el tuyo`
+      }
+    } else {
+      miPosicionEl.textContent = ''
+    }
+  }
+
 }
 
   const enPrep = data.filter(p => p.estado === 'en preparacion')
