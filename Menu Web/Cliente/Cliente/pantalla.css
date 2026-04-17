@@ -1,0 +1,139 @@
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #fdf7f3;
+  margin: 0;
+  padding: 2rem;
+  color: #444;
+}
+
+.ver-pantalla,
+.volver-menu {
+  bottom: 20px;
+  right: 20px;
+  background: #e67a8a;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.8rem 1.2rem;
+  font-size: 0.85rem;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+
+/* header */
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.logo {
+  width: 200px;
+  margin-bottom: 0.5rem;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  color: #e67a8a;
+}
+
+/* subtítulos */
+.subtitulo {
+  font-size: 1.2rem;
+  margin: 1.5rem 0 1rem;
+  color: #e67a8a;
+}
+
+.subtitulo.listo {
+  color: #6ec1a5;
+}
+
+/* grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+/* tarjetas */
+.pedido {
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  transition: transform 0.2s;
+}
+
+.pedido:hover {
+  transform: scale(1.05);
+}
+
+/* estados */
+.pedido.prep {
+  background: #ffe4e8;
+  border: 2px solid #f8b6c1;
+}
+
+.pedido.listo {
+  background: #d9f3ea;
+  border: 2px solid #9edac8;
+}
+
+/* código */
+.codigo {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #333;
+}
+
+/* cliente */
+.cliente {
+  font-size: 0.9rem;
+  margin-top: 0.3rem;
+  color: #666;
+}
+
+.pedido {
+  position: relative;
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 1.2rem;
+}
+
+/* Número grande tipo turno */
+.orden {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+/* Código grande (protagonista) */
+.codigo {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+/* Cliente */
+.cliente {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.mi-pedido {
+  border: 3px solid rgb(0, 0, 0);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+  transform: scale(1.05);
+}
+
+.turno {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.badge {
+  margin-top: 5px;
+  font-size: 0.8rem;
+  color: black;
+}
