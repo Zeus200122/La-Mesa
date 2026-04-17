@@ -90,3 +90,50 @@ body {
   margin-top: 0.3rem;
   color: #666;
 }
+
+.pedido {
+  position: relative;
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 1.2rem;
+}
+
+/* Número grande tipo turno */
+.orden {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+/* Código grande (protagonista) */
+.codigo {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+/* Cliente */
+.cliente {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.mi-pedido {
+  border: 3px solid rgb(0, 0, 0);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+  transform: scale(1.05);
+}
+
+.turno {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.badge {
+  margin-top: 5px;
+  font-size: 0.8rem;
+  color: black;
+}
