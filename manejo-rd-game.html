@@ -41,6 +41,15 @@ canvas{display:block;position:fixed;top:0;left:0;}
 /* Minimap */
 #minimap{position:fixed;bottom:60px;right:12px;z-index:200;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);}
 
+/* Mobile touch zones */
+#touch-zones{position:fixed;inset:0;z-index:150;pointer-events:none;display:none;}
+.touch-zone{position:absolute;display:flex;align-items:center;justify-content:center;font-size:28px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.15);}
+#tz-accel{top:0;left:0;right:0;height:50%;font-size:32px;}
+#tz-left{bottom:0;left:0;width:33%;height:50%;}
+#tz-brake{bottom:0;left:33%;width:34%;height:50%;}
+#tz-right{bottom:0;right:0;width:33%;height:50%;}
+@media (hover:none) and (pointer:coarse){#touch-zones{display:block;}#controls{display:none;}}
+
 /* Controls hint */
 #controls{position:fixed;bottom:52px;left:16px;z-index:200;font-size:11px;color:rgba(255,255,255,0.4);line-height:1.8;}
 
@@ -219,6 +228,14 @@ canvas{display:block;position:fixed;top:0;left:0;}
   ↑ Acelerar &nbsp; ↓ Frenar<br>← → Girar &nbsp; P Pausar
 </div>
 
+<!-- Mobile touch zones -->
+<div id="touch-zones">
+  <div class="touch-zone" id="tz-accel">⬆️ ACELERAR</div>
+  <div class="touch-zone" id="tz-left">⬅️</div>
+  <div class="touch-zone" id="tz-brake">🛑</div>
+  <div class="touch-zone" id="tz-right">➡️</div>
+</div>
+
 <canvas id="minimap" width="120" height="90"></canvas>
 <canvas id="game-canvas"></canvas>
 
@@ -310,8 +327,12 @@ const ENVS = {
 let G = null; // game state
 
 function makeGame(envKey, vehicle){
+  
   const env = ENVS[envKey];
   const vehStats = {
+    lane: 0,
+    targetLane: 0,
+    laneWidth: 60,
     carro:  {maxSpeed:180, accel:3.5, brake:5, turn:2.8, w:24, h:44, emoji:'🚗', color:'#e84040'},
     motor:  {maxSpeed:200, accel:5, brake:4, turn:4, w:16, h:36, emoji:'🏍️', color:'#3060e0'},
     camion: {maxSpeed:120, accel:1.5, brake:3, turn:1.5, w:32, h:64, emoji:'🚛', color:'#c0922a'},
@@ -325,12 +346,13 @@ function makeGame(envKey, vehicle){
   return {
     env, vehicle, envKey,
     veh: {
-      x: 400, y: H/2 + 100,
+      x: W/2,
+      y: 0,
       vx:0, vy:0, speed:0, angle: -Math.PI/2,
       ...vehStats,
       lane: 0 // -1 left, 0 center, 1 right
     },
-    cam: {x:400, y:H/2+100},
+    cam: { x: W/2,  y: 0},
     road: roadSegments,
     npcs,
     obstacles: [],
@@ -394,21 +416,48 @@ function buildNPCs(env, road){
   const npcs = [];
   const density = env.trafficDensity;
   const colors = ['#cc4444','#4444cc','#44cc44','#cccc44','#cc8844','#888888','#cc44cc'];
-  for(let i=0;i<Math.floor(30*density);i++){
-    const ri = Math.floor(Math.random()*road.length);
-    const seg = road[ri];
-    const side = Math.random()<0.5?-1:1;
+
+  const count = Math.floor(30 * density);
+
+  for(let i = 0; i < count; i++){
+
+    // Posición a lo largo de la carretera
+    const ri = Math.floor((i / count) * (road.length - 10)) + 5;
+    const seg = road[Math.min(ri, road.length - 1)];
+
+    if (!seg || !isFinite(seg.x) || !isFinite(seg.w)) continue;
+
+    // Carriles discretos (igual que player)
+    const lanes = [-1, 0, 1];
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
+
+    // Dirección
+    const isSameDir = Math.random() < 0.7;
+    const dir = isSameDir ? -1 : 1;
+
+    // Posición coherente con carretera
+    const x = seg.x + lane * (seg.w * 0.3);
+
+    // Posición Y (IMPORTANTE: distribuirlos bien en el mapa)
+    const y = seg.y;
+
+    // Ángulo coherente con tu fix actual (v.angle = 0)
+    const angle = dir === -1 ? 0 : Math.PI;
+
     npcs.push({
-      x: seg.x + side*(seg.w*0.25),
-      y: seg.y,
-      speed: 20+Math.random()*40,
-      dir: Math.random()<0.7?-1:1, // -1 = going up (same), 1 = coming down (opposite)
-      w:22, h:40,
-      color: colors[Math.floor(Math.random()*colors.length)],
-      angle: Math.random()<0.7 ? -Math.PI/2 : Math.PI/2,
+      x,
+      y,
+      lane,
+      speed: 20 + Math.random() * 40,
+      dir,
+      w: 22,
+      h: 40,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      angle,
       id: i
     });
   }
+
   return npcs;
 }
 
@@ -607,12 +656,17 @@ function drawGame(){
   ctx.fillRect(0,0,W,H);
 
   ctx.save();
-  ctx.translate(W/2 - cam.x, H*0.65 - cam.y);
+  if (isNaN(G.cam.x) || isNaN(G.cam.y)) {
+  console.error("CAM está corrupta:", G.cam);
+  return;
+  }
+  console.log("CAM:", G.cam);
+  ctx.translate(W/2 - G.cam.x, H/2 - G.cam.y);
 
   // Draw ground
   ctx.fillStyle = env.groundColor;
-  ctx.fillRect(cam.x-W, cam.y-H*2, W*2, H*4);
-
+  ctx.fillRect(-W, -H*2, W*2, H*4);
+  
   // Draw road
   drawRoad();
 
@@ -630,6 +684,21 @@ function drawGame(){
   // HUD
   updateHUD();
 }
+
+function getNearestRoadSegment(y){
+  let closest = G.road[0];
+  let minDist = Math.abs(y - closest.y);
+
+  for(const seg of G.road){
+    const d = Math.abs(y - seg.y);
+    if(d < minDist){
+      minDist = d;
+      closest = seg;
+    }
+  }
+  return closest;
+}
+
 
 function drawRoad(){
   const road = G.road;
@@ -670,67 +739,52 @@ function drawRoad(){
     }
   }
 
-  // Draw buildings on sides
-  if(G.frame % 3 === 0 || !G.buildings){
-    G.buildings = generateBuildings();
-  }
-  drawBuildings();
-}
-
-function generateBuildings(){
-  const blds = [];
-  const road = G.road;
-  const env = G.env;
-  for(let i=0;i<road.length;i+=6){
-    const seg = road[i];
-    for(let side of [-1,1]){
-      const dist = seg.w/2 + 20 + Math.random()*30;
-      blds.push({
-        x: seg.x + side*dist,
-        y: seg.y - Math.random()*60,
-        w: 30+Math.random()*50,
-        h: 20+Math.random()*40,
-        color: env.buildingColors[Math.floor(Math.random()*env.buildingColors.length)],
-        side
-      });
-    }
-  }
-  return blds;
-}
-
-function drawBuildings(){
-  if(!G.buildings) return;
-  for(const b of G.buildings){
-    ctx.fillStyle = b.color;
-    ctx.fillRect(b.x - b.w/2, b.y - b.h, b.w, b.h);
-    // window dots
-    ctx.fillStyle = 'rgba(255,255,180,0.3)';
-    for(let r=0;r<3;r++) for(let c=0;c<2;c++){
-      ctx.fillRect(b.x - b.w/2 + 5 + c*12, b.y - b.h + 5 + r*10, 6,5);
-    }
-  }
 }
 
 function drawNPCs(){
   for(const npc of G.npcs){
     ctx.save();
     ctx.translate(npc.x, npc.y);
-    ctx.rotate(npc.angle);
+    // No rotation — cars always drawn vertical since road is vertical
+    // w = car width, h = car height (tall)
+
+    const cw = npc.w; // narrow
+    const ch = npc.h; // tall
 
     // Body
     ctx.fillStyle = npc.color;
     ctx.beginPath();
-    ctx.roundRect(-npc.w/2, -npc.h/2, npc.w, npc.h, 4);
+    ctx.roundRect(-cw/2, -ch/2, cw, ch, 4);
     ctx.fill();
 
-    // Windshield
-    ctx.fillStyle = 'rgba(180,220,255,0.5)';
-    ctx.fillRect(-npc.w/2+3, -npc.h/2+3, npc.w-6, 12);
+    // Windshield (at the front — top if going up, bottom if going down)
+    ctx.fillStyle = 'rgba(180,220,255,0.55)';
+    if(npc.dir === -1){
+      // going up: front is top
+      ctx.fillRect(-cw/2+2, -ch/2+3, cw-4, ch*0.28);
+    } else {
+      // going down (oncoming): front is bottom
+      ctx.fillRect(-cw/2+2, ch/2 - ch*0.28 - 3, cw-4, ch*0.28);
+    }
 
-    // Headlights/taillights
-    ctx.fillStyle = npc.dir===-1 ? '#ffee88' : '#ff4444';
-    ctx.fillRect(-npc.w/2+2, npc.dir===-1 ? -npc.h/2 : npc.h/2-6, 5,5);
-    ctx.fillRect(npc.w/2-7, npc.dir===-1 ? -npc.h/2 : npc.h/2-6, 5,5);
+    // Headlights / taillights
+    if(npc.dir === -1){
+      // going up: headlights at top, taillights at bottom
+      ctx.fillStyle = '#ffee88';
+      ctx.fillRect(-cw/2+2, -ch/2, 5, 4);
+      ctx.fillRect(cw/2-7,  -ch/2, 5, 4);
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(-cw/2+2, ch/2-4, 5, 4);
+      ctx.fillRect(cw/2-7,  ch/2-4, 5, 4);
+    } else {
+      // oncoming: headlights at bottom (facing player), taillights at top
+      ctx.fillStyle = '#ffee88';
+      ctx.fillRect(-cw/2+2, ch/2-4, 5, 4);
+      ctx.fillRect(cw/2-7,  ch/2-4, 5, 4);
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(-cw/2+2, -ch/2, 5, 4);
+      ctx.fillRect(cw/2-7,  -ch/2, 5, 4);
+    }
 
     ctx.restore();
   }
@@ -740,7 +794,7 @@ function drawPlayer(){
   const v = G.veh;
   ctx.save();
   ctx.translate(v.x, v.y);
-  ctx.rotate(v.angle + Math.PI/2);
+  ctx.rotate(v.angle);
 
   // Glow when invincible
   if(G.invincible > 0 && Math.floor(G.invincible/3)%2===0){
@@ -861,23 +915,78 @@ function updatePhysics(dt){
   const leftKey  = keys.ArrowLeft || keys.a || keys.A;
   const rightKey = keys.ArrowRight || keys.d || keys.D;
 
-  const maxSpd = v.maxSpeed;
+  // ---- CONTROL DE CARRILES ----
+  if (G.targetLane === undefined) G.targetLane = 0;
+  if (!G.laneCooldown) G.laneCooldown = 0;
 
-  if(accelKey){
-    v.speed = Math.min(v.speed + v.accel * dt * 60, maxSpd);
-  } else if(brakeKey){
-    v.speed = Math.max(v.speed - v.brake * dt * 60, -30);
-  } else {
-    v.speed *= 0.97;
-    if(Math.abs(v.speed)<0.3) v.speed=0;
+  if (G.laneCooldown <= 0) {
+    if (leftKey) {
+      G.targetLane--;
+      G.laneCooldown = 12;
+    }
+    if (rightKey) {
+      G.targetLane++;
+      G.laneCooldown = 12;
+    }
   }
 
-  const turnRate = v.turn * (v.speed/maxSpd * 0.7 + 0.3) * dt * 60;
-  if(leftKey)  v.angle -= turnRate * 0.04;
-  if(rightKey) v.angle += turnRate * 0.04;
+  G.targetLane = Math.max(-1, Math.min(1, G.targetLane));
+  G.laneCooldown--;
 
-  v.x += Math.sin(v.angle) * v.speed * dt;
-  v.y -= Math.cos(v.angle) * v.speed * dt;
+  const maxSpd = v.maxSpeed;
+
+
+  // Carriles
+  const roadWidth = G.env.roadWidth * 0.6;
+ const seg = getNearestRoadSegment(v.y);
+
+  if (!seg || !isFinite(seg.x) || !isFinite(seg.w)) {
+    console.warn("Segmento inválido:", seg);
+    return; // evita contaminar todo con NaN
+  }
+
+  const lane = isFinite(G.targetLane) ? G.targetLane : 0;
+
+  const targetX = seg.x + lane * (seg.w * 0.3);
+
+  if (isFinite(targetX)) {
+    v.x += (targetX - v.x) * 0.12;
+  } else {
+    console.warn("targetX inválido:", targetX);
+  }
+
+  v.x += (targetX - v.x) * 0.12;
+
+  // Limitar carretera
+  const maxOffset = (G.env.roadWidth * 0.5) - 20;
+  const offset = v.x - G.cam.x;
+  if(offset > maxOffset) v.x = G.cam.x + maxOffset;
+  if(offset < -maxOffset) v.x = G.cam.x - maxOffset;
+
+  // Física velocidad
+  v.speed *= 0.988;
+  v.speed -= v.speed * 0.001;
+
+  // Auto-cruise
+  const cruiseTarget = G.speedLimit * 0.7;
+  if(!accelKey && !brakeKey){
+    if(v.speed < cruiseTarget){
+      v.speed += v.accel * dt * 8;
+    }
+    if(Math.abs(v.speed) < 0.3) v.speed = 0;
+  }
+
+  // Input
+  if(accelKey){
+    v.speed += v.accel * dt * 40;
+  }
+  if(brakeKey){
+    v.speed -= v.brake * dt * 60;
+  }
+
+  // Movimiento forward (IMPORTANTE)
+  v.angle = 0;
+  v.y -= v.speed * dt;
 
   // Camera smooth follow
   G.cam.x += (v.x - G.cam.x) * 0.12;
@@ -941,9 +1050,11 @@ function checkSpeedLimit(speed, dt){
 function updateNPCs(dt){
   for(const npc of G.npcs){
     npc.y += npc.dir * npc.speed * dt;
-    // Loop
-    if(npc.y > G.veh.y + 600) npc.y = G.veh.y - 600;
-    if(npc.y < G.veh.y - 600) npc.y = G.veh.y + 600;
+    // Loop NPCs around player
+    if(npc.y > G.veh.y + 800) npc.y = G.veh.y - 800;
+    if(npc.y < G.veh.y - 800) npc.y = G.veh.y + 800;
+    // Ensure angle always matches direction (in case of reset)
+    npc.angle = npc.dir === -1 ? -Math.PI/2 : Math.PI/2;
   }
 }
 
@@ -974,7 +1085,25 @@ function handleCrash(){
 // ---- EVENTS ----
 function triggerEvent(){
   const pool = EVENT_POOL[G.envKey] || EVENT_POOL.ciudad;
-  const ev = pool[Math.floor(Math.random()*pool.length)];
+  
+  // Track recently used event indices to avoid repeats
+  if(!G.recentEvents) G.recentEvents = [];
+  
+  // Filter out recently used events (avoid repeating until all have been shown)
+  let available = pool.map((ev, i) => i).filter(i => !G.recentEvents.includes(i));
+  if(available.length === 0){
+    // All events have been shown, reset history (but keep last one to avoid immediate repeat)
+    const lastShown = G.recentEvents[G.recentEvents.length - 1];
+    G.recentEvents = lastShown !== undefined ? [lastShown] : [];
+    available = pool.map((ev, i) => i).filter(i => !G.recentEvents.includes(i));
+  }
+  
+  const chosenIdx = available[Math.floor(Math.random() * available.length)];
+  G.recentEvents.push(chosenIdx);
+  // Keep history to pool size so we cycle through all events first
+  if(G.recentEvents.length > pool.length) G.recentEvents.shift();
+  
+  const ev = pool[chosenIdx];
   G.eventActive = true;
   G.veh.speed *= 0.3;
 
@@ -1235,17 +1364,81 @@ window.addEventListener('keyup',e=>{ if(G) G.keys[e.key]=false; });
 // Mobile touch controls
 let touchStartX=null,touchStartY=null;
 let activeTouches={};
-window.addEventListener('touchstart',e=>{
+
+// Map to track which key each touch ID is controlling
+const touchKeyMap = {};
+
+function getTouchKey(x, y){
+  if(y < H*0.5){
+    return 'ArrowUp';
+  } else {
+    if(x < W*0.33) return 'ArrowLeft';
+    else if(x > W*0.66) return 'ArrowRight';
+    else return 'ArrowDown';
+  }
+}
+
+window.addEventListener('keydown', e=>{
+  if(!G) return;
+
+  if(e.key === "ArrowLeft"){
+    G.targetLane = Math.max(-1, G.targetLane - 1);
+  }
+  if(e.key === "ArrowRight"){
+    G.targetLane = Math.min(1, G.targetLane + 1);
+  }
+
+  G.keys[e.key] = true;
+});
+
+
+window.addEventListener('touchstart', e=>{
+  if(!G) return;
   for(const t of e.changedTouches){
-    const x=t.clientX, y=t.clientY;
-    if(y < H*0.5){
-      if(!G) return;
-      G.keys.ArrowUp = true;
+    const key = getTouchKey(t.clientX, t.clientY);
+    touchKeyMap[t.identifier] = key;
+    G.keys[key] = true;
+  }
+},{passive:true});
+
+window.addEventListener('touchmove', e=>{
+  if(!G) return;
+  for(const t of e.changedTouches){
+    const newKey = getTouchKey(t.clientX, t.clientY);
+    const oldKey = touchKeyMap[t.identifier];
+    if(oldKey && oldKey !== newKey){
+      // Check if any other touch is still using oldKey
+      const stillUsed = Object.entries(touchKeyMap).some(([id, k]) => parseInt(id) !== t.identifier && k === oldKey);
+      if(!stillUsed) G.keys[oldKey] = false;
+      touchKeyMap[t.identifier] = newKey;
+      G.keys[newKey] = true;
     }
   }
 },{passive:true});
-window.addEventListener('touchend',e=>{
-  if(G){ G.keys.ArrowUp=false; G.keys.ArrowLeft=false; G.keys.ArrowRight=false; }
+
+window.addEventListener('touchend', e=>{
+  if(!G) return;
+  for(const t of e.changedTouches){
+    const key = touchKeyMap[t.identifier];
+    if(key){
+      delete touchKeyMap[t.identifier];
+      // Only release the key if no other active touch is using it
+      const stillUsed = Object.values(touchKeyMap).includes(key);
+      if(!stillUsed) G.keys[key] = false;
+    }
+  }
+},{passive:true});
+
+window.addEventListener('touchcancel', e=>{
+  if(!G) return;
+  for(const t of e.changedTouches){
+    const key = touchKeyMap[t.identifier];
+    if(key){
+      delete touchKeyMap[t.identifier];
+      const stillUsed = Object.values(touchKeyMap).includes(key);
+      if(!stillUsed) G.keys[key] = false;
+    }
+  }
 },{passive:true});
 
 // Score tick
