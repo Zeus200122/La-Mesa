@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manejo RD - Juego de Conducción</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@400;600;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0f1a;font-family:'Exo 2',sans-serif;overflow:hidden;user-select:none;}
+
+#ui-overlay{position:fixed;inset:0;z-index:100;pointer-events:none;}
+canvas{display:block;position:fixed;top:0;left:0;}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:200;background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);pointer-events:none;}
+.hud-pill{background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:5px 14px;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;}
+.hud-pill .val{font-family:'Bebas Neue',cursive;font-size:20px;color:#f5c518;line-height:1;}
+#speedo{font-family:'Bebas Neue',cursive;font-size:28px;color:#f5c518;min-width:72px;}
+#zone-badge{background:rgba(0,0,0,0.7);border:1px solid rgba(245,197,24,0.4);border-radius:8px;padding:5px 14px;color:#f5c518;font-size:12px;font-weight:700;letter-spacing:1px;}
+#infraction-flash{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,50,50,0);pointer-events:none;z-index:300;transition:background 0.1s;}
+
+/* Notificación de infracción */
+#notif{position:fixed;top:70px;right:16px;z-index:400;max-width:280px;display:none;}
+.notif-card{background:#1a0a0a;border:2px solid #ff4444;border-radius:12px;padding:14px 16px;color:#fff;animation:slideIn 0.3s ease;}
+.notif-card.good{background:#0a1a0a;border-color:#44ff88;}
+.notif-title{font-size:13px;font-weight:700;color:#ff6666;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.notif-card.good .notif-title{color:#44ff88;}
+.notif-body{font-size:12px;color:#cccccc;line-height:1.5;}
+.notif-fine{font-family:'Bebas Neue',cursive;font-size:18px;color:#ff4444;margin-top:6px;}
+@keyframes slideIn{from{transform:translateX(120%);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+/* Stats bottom */
+#stats-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 16px;display:flex;align-items:center;gap:14px;background:linear-gradient(to top,rgba(0,0,0,0.8),transparent);z-index:200;}
+.stat-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#aaa;}
+.stat-val{font-family:'Bebas Neue',cursive;font-size:18px;color:#f5c518;}
+#fine-total{color:#ff6666;}
+#score-val{color:#f5c518;}
+
+/* Minimap */
+#minimap{position:fixed;bottom:60px;right:12px;z-index:200;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);}
+
+/* Controls hint */
+#controls{position:fixed;bottom:52px;left:16px;z-index:200;font-size:11px;color:rgba(255,255,255,0.4);line-height:1.8;}
+
+/* Screens */
+.game-screen{position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,10,20,0.97);}
+.game-screen.hidden{display:none;}
+
+.logo-title{font-family:'Bebas Neue',cursive;font-size:72px;color:#f5c518;letter-spacing:6px;line-height:1;text-align:center;}
+.logo-sub{font-size:13px;letter-spacing:3px;color:#7090aa;text-transform:uppercase;text-align:center;margin-top:4px;}
+
+.env-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;width:500px;margin:24px 0;}
+.env-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:18px;cursor:pointer;transition:all 0.2s;text-align:left;}
+.env-card:hover{background:rgba(245,197,24,0.08);border-color:rgba(245,197,24,0.5);transform:translateY(-2px);}
+.env-card.selected{border-color:#f5c518;background:rgba(245,197,24,0.1);}
+.env-icon{font-size:32px;margin-bottom:8px;}
+.env-name{font-size:15px;font-weight:700;color:#eee;}
+.env-limit{font-size:11px;color:#889aaa;margin-top:3px;}
+.env-desc{font-size:11px;color:#667788;margin-top:4px;line-height:1.4;}
+
+.btn-start{background:#f5c518;color:#0a0f1a;border:none;border-radius:10px;padding:14px 48px;font-family:'Bebas Neue',cursive;font-size:24px;letter-spacing:2px;cursor:pointer;transition:all 0.15s;margin-top:8px;}
+.btn-start:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(245,197,24,0.3);}
+.btn-start:disabled{opacity:0.3;cursor:default;transform:none;}
+
+/* Vehicle select */
+.veh-grid{display:flex;gap:16px;margin:20px 0;}
+.veh-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 24px;cursor:pointer;transition:all 0.2s;text-align:center;}
+.veh-card:hover{border-color:rgba(245,197,24,0.4);}
+.veh-card.selected{border-color:#f5c518;background:rgba(245,197,24,0.08);}
+.veh-emoji{font-size:40px;}
+.veh-name{font-size:13px;font-weight:600;color:#eee;margin-top:8px;}
+.veh-stat{font-size:11px;color:#889aaa;margin-top:3px;}
+
+/* Pause / Game over */
+#pause-screen,#gameover-screen{position:fixed;inset:0;z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,10,20,0.92);backdrop-filter:blur(4px);}
+#pause-screen.hidden,#gameover-screen.hidden{display:none;}
+.overlay-title{font-family:'Bebas Neue',cursive;font-size:56px;color:#f5c518;letter-spacing:4px;}
+.overlay-sub{font-size:14px;color:#889aaa;margin:8px 0 24px;}
+.btn-menu{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;border-radius:8px;padding:10px 28px;font-size:13px;cursor:pointer;transition:all 0.15s;margin-top:10px;}
+.btn-menu:hover{background:rgba(255,255,255,0.08);color:#fff;}
+.go-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;min-width:360px;}
+.go-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;text-align:center;}
+.go-stat .n{font-family:'Bebas Neue',cursive;font-size:32px;color:#f5c518;}
+.go-stat .l{font-size:11px;color:#889aaa;letter-spacing:1px;text-transform:uppercase;}
+
+/* Event popup */
+#event-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:450;background:#0a1628;border:2px solid #f5c518;border-radius:16px;padding:24px 28px;min-width:320px;text-align:center;display:none;}
+.ep-icon{font-size:48px;margin-bottom:8px;}
+.ep-title{font-family:'Bebas Neue',cursive;font-size:28px;color:#f5c518;letter-spacing:2px;}
+.ep-body{font-size:13px;color:#aabbcc;margin:8px 0 16px;line-height:1.6;}
+.ep-choice{display:flex;flex-direction:column;gap:8px;}
+.ep-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 16px;color:#ddeeff;font-size:13px;cursor:pointer;transition:all 0.15s;text-align:left;}
+.ep-btn:hover{background:rgba(245,197,24,0.1);border-color:rgba(245,197,24,0.4);}
+.ep-feedback{display:none;padding:10px;border-radius:8px;font-size:12px;margin-top:8px;line-height:1.5;}
+.ep-feedback.good{background:rgba(0,200,100,0.15);color:#77ffbb;border:1px solid rgba(0,200,100,0.3);}
+.ep-feedback.bad{background:rgba(255,60,60,0.15);color:#ffaaaa;border:1px solid rgba(255,60,60,0.3);}
+.ep-continue{background:#f5c518;color:#0a0f1a;border:none;border-radius:8px;padding:10px 28px;font-family:'Bebas Neue',cursive;font-size:18px;cursor:pointer;margin-top:10px;display:none;}
+
+/* Zone transition */
+#zone-transition{position:fixed;inset:0;z-index:480;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0);pointer-events:none;transition:background 0.4s;}
+#zone-transition.show{background:rgba(0,0,0,0.75);}
+#zone-name-big{font-family:'Bebas Neue',cursive;font-size:64px;color:#f5c518;letter-spacing:6px;opacity:0;transition:opacity 0.4s;text-align:center;}
+#zone-limit-big{font-size:16px;color:#aaccee;letter-spacing:3px;text-transform:uppercase;margin-top:4px;opacity:0;transition:opacity 0.4s;text-align:center;}
+</style>
+</head>
+<body>
+
+<!-- SCREENS -->
+<div class="game-screen" id="start-screen">
+  <div style="margin-bottom:24px;">
+    <div style="display:flex;justify-content:center;gap:6px;margin-bottom:10px;">
+      <div style="width:30px;height:9px;background:#002d62;border-radius:3px;"></div>
+      <div style="width:30px;height:9px;background:#cf142b;border-radius:3px;"></div>
+      <div style="width:30px;height:9px;background:#002d62;border-radius:3px;"></div>
+    </div>
+    <div class="logo-title">MANEJO RD</div>
+    <div class="logo-sub">Simulador de Conducción — República Dominicana</div>
+  </div>
+
+  <div style="font-size:12px;color:#556677;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Elige tu vehículo</div>
+  <div class="veh-grid">
+    <div class="veh-card selected" id="veh-carro" onclick="selectVehicle('carro',this)">
+      <div class="veh-emoji">🚗</div>
+      <div class="veh-name">Carro</div>
+      <div class="veh-stat">Velocidad media</div>
+    </div>
+    <div class="veh-card" id="veh-motor" onclick="selectVehicle('motor',this)">
+      <div class="veh-emoji">🏍️</div>
+      <div class="veh-name">Motor</div>
+      <div class="veh-stat">Más ágil, más riesgo</div>
+    </div>
+    <div class="veh-card" id="veh-camion" onclick="selectVehicle('camion',this)">
+      <div class="veh-emoji">🚛</div>
+      <div class="veh-name">Camión</div>
+      <div class="veh-stat">Lento, más peso</div>
+    </div>
+    <div class="veh-card" id="veh-guagua" onclick="selectVehicle('guagua',this)">
+      <div class="veh-emoji">🚌</div>
+      <div class="veh-name">Guagua</div>
+      <div class="veh-stat">Bus público RD</div>
+    </div>
+  </div>
+
+  <div style="font-size:12px;color:#556677;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Elige el ambiente</div>
+  <div class="env-grid" id="env-grid">
+    <div class="env-card selected" data-env="barrio" onclick="selectEnv(this)">
+      <div class="env-icon">🏘️</div>
+      <div class="env-name">Barrio / Vecindario</div>
+      <div class="env-limit">Límite: 20–30 km/h · Calles estrechas</div>
+      <div class="env-desc">Callejones, escuelas, peatones y motores por doquier</div>
+    </div>
+    <div class="env-card" data-env="ciudad" onclick="selectEnv(this)">
+      <div class="env-icon">🏙️</div>
+      <div class="env-name">Ciudad / Avenida</div>
+      <div class="env-limit">Límite: 40–60 km/h · Semáforos</div>
+      <div class="env-desc">Avenidas de Santo Domingo con semáforos y cruces</div>
+    </div>
+    <div class="env-card" data-env="carretera" onclick="selectEnv(this)">
+      <div class="env-icon">🛣️</div>
+      <div class="env-name">Carretera Nacional</div>
+      <div class="env-limit">Límite: 80 km/h · Curvas y cruces</div>
+      <div class="env-desc">Carretera Duarte con curvas, cruces y zonas de no adelantar</div>
+    </div>
+    <div class="env-card" data-env="autopista" onclick="selectEnv(this)">
+      <div class="env-icon">🚀</div>
+      <div class="env-name">Autopista</div>
+      <div class="env-limit">Límite: 120 km/h · Alta velocidad</div>
+      <div class="env-desc">Autopista Las Américas: radares, carriles y adelantamientos</div>
+    </div>
+  </div>
+
+  <button class="btn-start" id="btn-start" onclick="startGame()">MANEJAR →</button>
+  <div style="font-size:11px;color:#334455;margin-top:16px;">← → Girar · ↑ Acelerar · ↓ Frenar · P Pausar</div>
+</div>
+
+<!-- PAUSE -->
+<div id="pause-screen" class="hidden">
+  <div class="overlay-title">PAUSADO</div>
+  <div class="overlay-sub">Presiona P para continuar</div>
+  <button class="btn-start" onclick="resumeGame()">CONTINUAR</button>
+  <button class="btn-menu" onclick="goToMenu()">Menú Principal</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen" class="hidden">
+  <div class="overlay-title" id="go-title">FIN DEL RECORRIDO</div>
+  <div class="overlay-sub" id="go-sub">Resumen de tu manejo</div>
+  <div class="go-stats">
+    <div class="go-stat"><div class="n" id="go-score">0</div><div class="l">Puntos</div></div>
+    <div class="go-stat"><div class="n" id="go-dist">0m</div><div class="l">Distancia</div></div>
+    <div class="go-stat"><div class="n" id="go-fines" style="color:#ff6666;">RD$0</div><div class="l">Multas</div></div>
+    <div class="go-stat"><div class="n" id="go-crashes">0</div><div class="l">Choques</div></div>
+    <div class="go-stat"><div class="n" id="go-correct">0</div><div class="l">Decisiones correctas</div></div>
+    <div class="go-stat"><div class="n" id="go-rank">C</div><div class="l">Calificación</div></div>
+  </div>
+  <div id="go-lesson" style="background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.2);border-radius:10px;padding:14px 18px;max-width:400px;font-size:12px;color:#aabbcc;line-height:1.6;margin-bottom:16px;"></div>
+  <button class="btn-start" onclick="startGame()">INTENTAR DE NUEVO</button>
+  <button class="btn-menu" onclick="goToMenu()">Menú Principal</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-pill">🚗 <span id="speedo" class="val">0</span><span style="font-size:11px;color:#889aaa;">km/h</span></div>
+  <div class="hud-pill">⭐ <span class="val" id="score-hud">0</span></div>
+  <div class="hud-pill">💰 <span class="val" id="fine-hud" style="color:#ff6666;">RD$0</span></div>
+  <div id="zone-badge">BARRIO · 30 km/h</div>
+</div>
+
+<div id="stats-bar">
+  <div class="stat-item">📍 Dist: <span class="stat-val" id="dist-val">0m</span></div>
+  <div class="stat-item">⏱️ <span class="stat-val" id="time-val">0:00</span></div>
+  <div class="stat-item">❤️ Vida: <span class="stat-val" id="life-val">3/3</span></div>
+  <div class="stat-item" style="margin-left:auto;font-size:11px;color:#445566;">WASD / Flechas · P = Pausa</div>
+</div>
+
+<div id="controls">
+  ↑ Acelerar &nbsp; ↓ Frenar<br>← → Girar &nbsp; P Pausar
+</div>
+
+<canvas id="minimap" width="120" height="90"></canvas>
+<canvas id="game-canvas"></canvas>
+
+<div id="infraction-flash"></div>
+
+<!-- Notificación -->
+<div id="notif"></div>
+
+<!-- Event popup -->
+<div id="event-popup">
+  <div class="ep-icon" id="ep-icon"></div>
+  <div class="ep-title" id="ep-title"></div>
+  <div class="ep-body" id="ep-body"></div>
+  <div class="ep-choice" id="ep-choice"></div>
+  <div class="ep-feedback" id="ep-feedback"></div>
+  <button class="ep-continue" id="ep-continue" onclick="closeEvent()">CONTINUAR →</button>
+</div>
+
+<!-- Zone transition -->
+<div id="zone-transition">
+  <div>
+    <div id="zone-name-big"></div>
+    <div id="zone-limit-big"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// GAME ENGINE
+// ============================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const mm = document.getElementById('minimap');
+const mctx = mm.getContext('2d');
+
+let W, H;
+function resize(){
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ---- ENVIRONMENTS ----
+const ENVS = {
+  barrio: {
+    name:'BARRIO', label:'Barrio / Vecindario', speedLimit:30,
+    bgColor:'#2d3520', roadColor:'#555550', lineColor:'#888',
+    buildingColors:['#8B7355','#7a6648','#9e8060','#6b5c47'],
+    skyColor:'#7db3e0', groundColor:'#4a5c30',
+    description:'Calles estrechas de barrio dominicano',
+    musicTone:'merengue',
+    elements:['school','speed_bump','pedestrian_cross'],
+    trafficDensity:0.6, roadWidth:80
+  },
+  ciudad: {
+    name:'CIUDAD', label:'Santo Domingo · Av. 27 de Febrero', speedLimit:60,
+    bgColor:'#1f2630', roadColor:'#444', lineColor:'#f5c518',
+    buildingColors:['#2a3545','#1e2d40','#334455','#243040'],
+    skyColor:'#3a5a80', groundColor:'#2a3520',
+    description:'Avenidas de la capital con semáforos',
+    musicTone:'bachata',
+    elements:['traffic_light','crosswalk','intersection'],
+    trafficDensity:0.8, roadWidth:140
+  },
+  carretera: {
+    name:'CARRETERA', label:'Carretera Duarte', speedLimit:80,
+    bgColor:'#253020', roadColor:'#484848', lineColor:'#ffffff',
+    buildingColors:['#5a7040','#486030','#647848','#4a6238'],
+    skyColor:'#5a8aaa', groundColor:'#3a5020',
+    description:'Carretera nacional con curvas y cruces',
+    musicTone:'perico_ripiao',
+    elements:['curve_warning','no_pass','rural_cross'],
+    trafficDensity:0.4, roadWidth:120
+  },
+  autopista: {
+    name:'AUTOPISTA', label:'Autopista Las Américas', speedLimit:120,
+    bgColor:'#1a1f2a', roadColor:'#3a3a3a', lineColor:'#ffffff',
+    buildingColors:['#2a2a3a','#252535','#1e1e2e'],
+    skyColor:'#1a2a4a', groundColor:'#202820',
+    description:'Alta velocidad · Radares y multas',
+    musicTone:'dembow',
+    elements:['radar','lane_change','highway_entry'],
+    trafficDensity:0.5, roadWidth:200
+  }
+};
+
+// ---- STATE ----
+let G = null; // game state
+
+function makeGame(envKey, vehicle){
+  const env = ENVS[envKey];
+  const vehStats = {
+    carro:  {maxSpeed:180, accel:3.5, brake:5, turn:2.8, w:24, h:44, emoji:'🚗', color:'#e84040'},
+    motor:  {maxSpeed:200, accel:5, brake:4, turn:4, w:16, h:36, emoji:'🏍️', color:'#3060e0'},
+    camion: {maxSpeed:120, accel:1.5, brake:3, turn:1.5, w:32, h:64, emoji:'🚛', color:'#c0922a'},
+    guagua: {maxSpeed:100, accel:2, brake:3.5, turn:2, w:28, h:72, emoji:'🚌', color:'#228822'},
+  }[vehicle];
+
+  // Road segments (curves for carretera/autopista)
+  const roadSegments = buildRoad(env);
+  const npcs = buildNPCs(env, roadSegments);
+
+  return {
+    env, vehicle, envKey,
+    veh: {
+      x: 400, y: H/2 + 100,
+      vx:0, vy:0, speed:0, angle: -Math.PI/2,
+      ...vehStats,
+      lane: 0 // -1 left, 0 center, 1 right
+    },
+    cam: {x:400, y:H/2+100},
+    road: roadSegments,
+    npcs,
+    obstacles: [],
+    signs: buildSigns(env, roadSegments),
+    events: [],
+    
+    score: 0,
+    fines: 0,
+    distance: 0,
+    lives: 3,
+    time: 0,
+    correctDecisions: 0,
+    crashes: 0,
+    
+    speedLimit: env.speedLimit,
+    currentZone: env.name,
+    
+    keys: {},
+    paused: false,
+    gameOver: false,
+    eventActive: false,
+    
+    lastEventTime: 0,
+    nextEventDelay: 8000 + Math.random()*10000,
+    
+    speedingTimer: 0,
+    speedingFine: false,
+    
+    invincible: 0,
+    flashRed: 0,
+    
+    notifQueue: [],
+    notifTimer: 0,
+  };
+}
+
+function buildRoad(env){
+  // Generate road as a list of points forming a winding path
+  const pts = [];
+  const roadW = env.roadWidth;
+  let x = W/2, y = H*10;
+  pts.push({x,y,w:roadW,zone:env.name,limit:env.speedLimit});
+  const steps = 300;
+  for(let i=1;i<steps;i++){
+    let curve = 0;
+    if(env.name==='CARRETERA') curve = Math.sin(i*0.04)*90;
+    if(env.name==='BARRIO') curve = Math.sin(i*0.08)*60 + (Math.random()<0.05?80*(Math.random()-0.5):0);
+    if(env.name==='CIUDAD') curve = Math.sin(i*0.06)*50;
+    x = W/2 + curve;
+    y = H*10 - i * 120;
+    // Zone changes for city
+    let zone = env.name, limit = env.speedLimit;
+    if(env.name==='CIUDAD' && i>50 && i<80){ zone='ESCOLAR'; limit=30; }
+    if(env.name==='CARRETERA' && i>100 && i<130){ zone='PUEBLO'; limit=40; }
+    pts.push({x,y,w:roadW+(Math.random()<0.1?-20:0),zone,limit});
+  }
+  return pts;
+}
+
+function buildNPCs(env, road){
+  const npcs = [];
+  const density = env.trafficDensity;
+  const colors = ['#cc4444','#4444cc','#44cc44','#cccc44','#cc8844','#888888','#cc44cc'];
+  for(let i=0;i<Math.floor(30*density);i++){
+    const ri = Math.floor(Math.random()*road.length);
+    const seg = road[ri];
+    const side = Math.random()<0.5?-1:1;
+    npcs.push({
+      x: seg.x + side*(seg.w*0.25),
+      y: seg.y,
+      speed: 20+Math.random()*40,
+      dir: Math.random()<0.7?-1:1, // -1 = going up (same), 1 = coming down (opposite)
+      w:22, h:40,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      angle: Math.random()<0.7 ? -Math.PI/2 : Math.PI/2,
+      id: i
+    });
+  }
+  return npcs;
+}
+
+function buildSigns(env, road){
+  const signs = [];
+  const count = Math.floor(road.length / 20);
+  const signTypes = {
+    BARRIO: ['school_zone','speed_bump','stop','yield'],
+    CIUDAD: ['traffic_signal','no_parking','speed_limit_60','crosswalk'],
+    CARRETERA: ['speed_limit_80','no_pass','curve_ahead','yield'],
+    AUTOPISTA: ['speed_limit_120','radar_ahead','keep_right','no_stop'],
+  };
+  const types = signTypes[env.name] || ['speed_limit_60'];
+  for(let i=0;i<count;i++){
+    const ri = Math.floor(Math.random()*road.length);
+    const seg = road[ri];
+    signs.push({
+      x: seg.x + seg.w*0.7 + 20,
+      y: seg.y,
+      type: types[Math.floor(Math.random()*types.length)],
+      triggered: false
+    });
+  }
+  return signs;
+}
+
+// ---- GAME EVENTS ----
+const EVENT_POOL = {
+  barrio: [
+    {
+      icon:'👧', title:'NIÑA EN LA CALLE',
+      body:'Una niña cruza corriendo entre dos carros estacionados. No hay paso peatonal marcado.',
+      choices:[
+        {text:'Frenar de inmediato y ceder el paso',correct:true},
+        {text:'Tocar bocina y continuar',correct:false},
+        {text:'Esquivar acelerando por la izquierda',correct:false},
+      ],
+      goodFeedback:'¡Correcto! Los peatones tienen prioridad SIEMPRE, incluso fuera de cruces señalizados. Art. 170 Ley 63-17.',
+      badFeedback:'Incorrecto. El peatón siempre tiene prioridad. No ceder paso a peatones puede resultar en multa de RD$2,000 y cargos penales si hay accidente.',
+      fine:2000, scoreBonus:50
+    },
+    {
+      icon:'🛵', title:'MOTOR POR EL LADO INCORRECTO',
+      body:'Un motor viene de frente por tu carril en sentido contrario. La calle es muy estrecha.',
+      choices:[
+        {text:'Reducir velocidad y orillarte a la derecha',correct:true},
+        {text:'Continuar y forzarlo a desviarse',correct:false},
+        {text:'Acelerar para pasar antes que él',correct:false},
+      ],
+      goodFeedback:'¡Bien! Aunque el motor esté en falta, lo prudente es ceder para evitar accidente. La defensiva siempre es correcta.',
+      badFeedback:'Incorrecto. Aunque tengas el paso, nunca debes arriesgar una colisión frontal. Conducción defensiva es clave.',
+      fine:0, scoreBonus:40
+    },
+    {
+      icon:'⛔', title:'SEÑAL DE PARE',
+      body:'Llegas a una intersección con señal de PARE. No ves vehículos a la derecha, solo hay un peatón en la acera.',
+      choices:[
+        {text:'Detenerse completamente, verificar y continuar',correct:true},
+        {text:'Reducir velocidad sin detenerse (rolling stop)',correct:false},
+        {text:'Continuar si no hay vehículos',correct:false},
+      ],
+      goodFeedback:'¡Perfecto! El PARE es una detención COMPLETA (velocidad = 0). El "rolling stop" es una infracción con multa de RD$1,500.',
+      badFeedback:'Incorrecto. El PARE exige detenerse completamente aunque no haya tráfico. El "rolling stop" es una infracción en R.D.',
+      fine:1500, scoreBonus:50
+    },
+  ],
+  ciudad: [
+    {
+      icon:'🚦', title:'LUZ AMARILLA',
+      body:'El semáforo frente a ti cambia a AMARILLO. Estás a 25 metros del cruce, a 55 km/h.',
+      choices:[
+        {text:'Frenar con calma para detenerse antes del cruce',correct:true},
+        {text:'Acelerar para pasar antes del rojo',correct:false},
+        {text:'Mantener la velocidad y cruzar',correct:false},
+      ],
+      goodFeedback:'¡Correcto! La luz amarilla significa PREPARARSE PARA PARAR, no acelerar. Cruzar en rojo genera multa de RD$3,000.',
+      badFeedback:'Incorrecto. La ley dominicana prohíbe acelerar ante luz amarilla. Cruzar en rojo es una infracción grave con multa de RD$3,000.',
+      fine:3000, scoreBonus:60
+    },
+    {
+      icon:'📱', title:'MENSAJE EN EL TELÉFONO',
+      body:'Tu teléfono vibra con un mensaje urgente. Vas a 60 km/h en la Av. 27 de Febrero.',
+      choices:[
+        {text:'Ignorarlo o usar manos libres solamente',correct:true},
+        {text:'Tomarlo rápido para ver de qué es',correct:false},
+        {text:'Estacionarte y revisarlo',correct:true},
+      ],
+      goodFeedback:'¡Bien! Usar el teléfono al volante sin manos libres tiene multa de RD$2,000. A 60 km/h, mirar 2 segundos = ¡33 metros a ciegas!',
+      badFeedback:'Incorrecto. Usar teléfono al volante es multa de RD$2,000 + pérdida de puntos. A 60 km/h recorres 16 metros por segundo.',
+      fine:2000, scoreBonus:50
+    },
+    {
+      icon:'🔄', title:'ROTONDA',
+      body:'Llegas a la glorieta de la Plaza de la Bandera. Hay vehículos circulando dentro de la rotonda.',
+      choices:[
+        {text:'Ceder el paso a quienes circulan dentro y esperar',correct:true},
+        {text:'Entrar a la par del vehículo que sale',correct:false},
+        {text:'Entrar rápido si hay espacio',correct:false},
+      ],
+      goodFeedback:'¡Correcto! En rotondas dominicanas, quien ya circula dentro tiene prelación absoluta. El que entra SIEMPRE cede.',
+      badFeedback:'Incorrecto. En las rotondas, quien ya está dentro tiene prioridad. Entrar sin ceder causa el 30% de los accidentes en glorietas de R.D.',
+      fine:1500, scoreBonus:50
+    },
+  ],
+  carretera: [
+    {
+      icon:'🚜', title:'ADELANTAMIENTO',
+      body:'Hay un tractor lento frente a ti. Hay línea discontinua y puedes ver 400 metros de carretera libre.',
+      choices:[
+        {text:'Señalizar, verificar y adelantar con decisión',correct:true},
+        {text:'Adelantar sin señalizar (está despejado)',correct:false},
+        {text:'Quedarse detrás del tractor indefinidamente',correct:false},
+      ],
+      goodFeedback:'¡Perfecto! Con línea discontinua y visibilidad, puedes adelantar. Pero SIEMPRE debes señalizar antes. Sin señal: multa de RD$800.',
+      badFeedback:'Incorrecto. Adelantar sin señalizar es una infracción aunque la vía esté despejada. La señal de giro protege a todos.',
+      fine:800, scoreBonus:60
+    },
+    {
+      icon:'🌧️', title:'LLUVIA FUERTE',
+      body:'Empieza a llover intensamente. Ibas a 80 km/h (el límite). La carretera se pone resbaladiza.',
+      choices:[
+        {text:'Reducir a unos 55 km/h y encender las luces',correct:true},
+        {text:'Mantener 80 km/h, es el límite legal',correct:false},
+        {text:'Acelerar para salir de la lluvia rápido',correct:false},
+      ],
+      goodFeedback:'¡Muy bien! Con lluvia debes reducir la velocidad aunque estés en el límite legal. La ley exige adaptar la velocidad a las condiciones. Enciende luces bajas.',
+      badFeedback:'Incorrecto. El límite es para condiciones normales. Con lluvia el frenado se duplica y la visibilidad baja. Debes reducir al menos un 30% de la velocidad.',
+      fine:2000, scoreBonus:55
+    },
+    {
+      icon:'⚠️', title:'CURVA PELIGROSA',
+      body:'Se aproxima una curva pronunciada con señal de "No Adelantar". Hay un carro lento frente a ti.',
+      choices:[
+        {text:'Reducir velocidad y esperar después de la curva',correct:true},
+        {text:'Adelantar rápido antes de llegar a la curva',correct:false},
+        {text:'Adelantar durante la curva si se ve libre',correct:false},
+      ],
+      goodFeedback:'¡Excelente! En curvas sin visibilidad, adelantar está PROHIBIDO aunque la señal sea discontinua. Espera siempre a tener visibilidad completa.',
+      badFeedback:'Incorrecto. En curvas está prohibido adelantar sin importar la línea del pavimento. La colisión frontal en curva es una de las causas principales de muertes en carretera en R.D.',
+      fine:3000, scoreBonus:60
+    },
+  ],
+  autopista: [
+    {
+      icon:'📡', title:'RADAR FOTOGRÁFICO',
+      body:'Un letrero dice "RADAR 500m". Tu velocidad actual es 138 km/h (límite: 120 km/h).',
+      choices:[
+        {text:'Reducir a 120 km/h antes del radar',correct:false},
+        {text:'Reducir inmediatamente a 120 km/h — y mantener ese ritmo',correct:true},
+        {text:'Continuar igual, los radares siempre están apagados',correct:false},
+      ],
+      goodFeedback:'¡Bien pensado! Los radares del INTRANT son permanentes. Pero lo correcto es circular siempre a 120 km/h, no solo cuando ves el radar.',
+      badFeedback:'Incorrecto. Los radares del INTRANT funcionan permanentemente. A 138 km/h la multa es RD$5,000. Y frenar solo para el radar es igualmente peligroso.',
+      fine:5000, scoreBonus:50
+    },
+    {
+      icon:'🚧', title:'CARRIL DE EMERGENCIA',
+      body:'Hay un tapón (trancón). Ves a varios conductores usando el carril de emergencia (hombrillo) para adelantar.',
+      choices:[
+        {text:'Esperar en tu carril — el hombrillo es solo para emergencias',correct:true},
+        {text:'Usar el hombrillo también, si todos lo hacen',correct:false},
+        {text:'Usar el hombrillo un momento para ver si avanza',correct:false},
+      ],
+      goodFeedback:'¡Correcto! El carril de emergencia/hombrillo es solo para vehículos averiados y emergencias. Usarlo para adelantar es multa de RD$2,500.',
+      badFeedback:'Incorrecto. Que otros lo hagan no lo hace legal. El hombrillo es exclusivo para averías y emergencias. Usarlo mal bloquea a ambulancias y bomberos.',
+      fine:2500, scoreBonus:60
+    },
+    {
+      icon:'💺', title:'CINTURÓN',
+      body:'Tu pasajero de atrás dice que el cinturón le molesta y se lo quita.',
+      choices:[
+        {text:'Decirle que es obligatorio y que se lo ponga',correct:true},
+        {text:'No es tu problema, él es mayor',correct:false},
+        {text:'Solo es obligatorio en asiento delantero',correct:false},
+      ],
+      goodFeedback:'¡Muy bien! El cinturón es obligatorio para TODOS los ocupantes. El conductor es responsable de sus pasajeros. Multa: RD$1,000 por pasajero sin cinturón.',
+      badFeedback:'Incorrecto. La Ley 63-17 obliga el cinturón a TODOS los pasajeros. El conductor recibe la multa de RD$1,000 por cada pasajero sin cinturón.',
+      fine:1000, scoreBonus:50
+    },
+  ],
+};
+
+// ---- RENDERING ----
+function drawGame(){
+  if(!G || G.gameOver) return;
+  ctx.clearRect(0,0,W,H);
+
+  const env = G.env;
+  const cam = G.cam;
+
+  // SKY gradient
+  const sky = ctx.createLinearGradient(0,0,0,H*0.4);
+  sky.addColorStop(0, env.skyColor);
+  sky.addColorStop(1, env.bgColor);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  ctx.translate(W/2 - cam.x, H*0.65 - cam.y);
+
+  // Draw ground
+  ctx.fillStyle = env.groundColor;
+  ctx.fillRect(cam.x-W, cam.y-H*2, W*2, H*4);
+
+  // Draw road
+  drawRoad();
+
+  // Draw signs
+  drawSigns();
+
+  // Draw NPCs
+  drawNPCs();
+
+  // Draw player
+  drawPlayer();
+
+  ctx.restore();
+
+  // HUD
+  updateHUD();
+}
+
+function drawRoad(){
+  const road = G.road;
+  const env = G.env;
+
+  // Draw road surface
+  ctx.strokeStyle = env.roadColor;
+  ctx.lineWidth = env.roadWidth + 20;
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  ctx.beginPath();
+  ctx.moveTo(road[0].x, road[0].y);
+  for(let i=1;i<road.length;i++){
+    ctx.lineTo(road[i].x, road[i].y);
+  }
+  ctx.stroke();
+
+  // Road lanes / center line
+  ctx.strokeStyle = env.lineColor;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([30,20]);
+  ctx.lineDashOffset = -G.distance * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(road[0].x, road[0].y);
+  for(let i=1;i<road.length;i++){
+    ctx.lineTo(road[i].x, road[i].y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw zone markers (school, etc.)
+  for(let i=0;i<road.length-1;i++){
+    if(road[i].zone === 'ESCOLAR' || road[i].zone === 'PUEBLO'){
+      if(i % 5 === 0){
+        ctx.fillStyle = road[i].zone === 'ESCOLAR' ? 'rgba(255,220,50,0.15)' : 'rgba(100,200,100,0.1)';
+        ctx.fillRect(road[i].x - road[i].w/2 - 30, road[i].y - 10, road[i].w + 60, 120);
+      }
+    }
+  }
+
+  // Draw buildings on sides
+  if(G.frame % 3 === 0 || !G.buildings){
+    G.buildings = generateBuildings();
+  }
+  drawBuildings();
+}
+
+function generateBuildings(){
+  const blds = [];
+  const road = G.road;
+  const env = G.env;
+  for(let i=0;i<road.length;i+=6){
+    const seg = road[i];
+    for(let side of [-1,1]){
+      const dist = seg.w/2 + 20 + Math.random()*30;
+      blds.push({
+        x: seg.x + side*dist,
+        y: seg.y - Math.random()*60,
+        w: 30+Math.random()*50,
+        h: 20+Math.random()*40,
+        color: env.buildingColors[Math.floor(Math.random()*env.buildingColors.length)],
+        side
+      });
+    }
+  }
+  return blds;
+}
+
+function drawBuildings(){
+  if(!G.buildings) return;
+  for(const b of G.buildings){
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x - b.w/2, b.y - b.h, b.w, b.h);
+    // window dots
+    ctx.fillStyle = 'rgba(255,255,180,0.3)';
+    for(let r=0;r<3;r++) for(let c=0;c<2;c++){
+      ctx.fillRect(b.x - b.w/2 + 5 + c*12, b.y - b.h + 5 + r*10, 6,5);
+    }
+  }
+}
+
+function drawNPCs(){
+  for(const npc of G.npcs){
+    ctx.save();
+    ctx.translate(npc.x, npc.y);
+    ctx.rotate(npc.angle);
+
+    // Body
+    ctx.fillStyle = npc.color;
+    ctx.beginPath();
+    ctx.roundRect(-npc.w/2, -npc.h/2, npc.w, npc.h, 4);
+    ctx.fill();
+
+    // Windshield
+    ctx.fillStyle = 'rgba(180,220,255,0.5)';
+    ctx.fillRect(-npc.w/2+3, -npc.h/2+3, npc.w-6, 12);
+
+    // Headlights/taillights
+    ctx.fillStyle = npc.dir===-1 ? '#ffee88' : '#ff4444';
+    ctx.fillRect(-npc.w/2+2, npc.dir===-1 ? -npc.h/2 : npc.h/2-6, 5,5);
+    ctx.fillRect(npc.w/2-7, npc.dir===-1 ? -npc.h/2 : npc.h/2-6, 5,5);
+
+    ctx.restore();
+  }
+}
+
+function drawPlayer(){
+  const v = G.veh;
+  ctx.save();
+  ctx.translate(v.x, v.y);
+  ctx.rotate(v.angle + Math.PI/2);
+
+  // Glow when invincible
+  if(G.invincible > 0 && Math.floor(G.invincible/3)%2===0){
+    ctx.globalAlpha = 0.5;
+  }
+
+  // Body
+  ctx.fillStyle = v.color;
+  ctx.beginPath();
+  ctx.roundRect(-v.w/2, -v.h/2, v.w, v.h, 5);
+  ctx.fill();
+
+  // Windshield
+  ctx.fillStyle = 'rgba(180,220,255,0.7)';
+  ctx.fillRect(-v.w/2+3, -v.h/2+4, v.w-6, 14);
+
+  // Headlights
+  ctx.fillStyle = '#ffffaa';
+  ctx.fillRect(-v.w/2+2, -v.h/2, 5,5);
+  ctx.fillRect(v.w/2-7, -v.h/2, 5,5);
+
+  // Taillights
+  ctx.fillStyle = G.keys.ArrowDown || G.keys.s || G.keys.S ? '#ff8800' : '#cc2222';
+  ctx.fillRect(-v.w/2+2, v.h/2-5, 5,5);
+  ctx.fillRect(v.w/2-7, v.h/2-5, 5,5);
+
+  // Turn signal
+  if(G.keys.ArrowLeft || G.keys.a || G.keys.A){
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillRect(-v.w/2-3, -v.h/2+5, 4,4);
+  }
+  if(G.keys.ArrowRight || G.keys.d || G.keys.D){
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillRect(v.w/2-1, -v.h/2+5, 4,4);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawSigns(){
+  for(const sign of G.signs){
+    const dist = Math.abs(sign.y - G.veh.y);
+    if(dist > 800) continue;
+
+    ctx.save();
+    ctx.translate(sign.x, sign.y);
+
+    // Post
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(0,-35);
+    ctx.stroke();
+
+    // Sign face
+    const signData = SIGN_STYLES[sign.type] || SIGN_STYLES.speed_limit_60;
+    ctx.fillStyle = signData.bg;
+    ctx.strokeStyle = signData.border;
+    ctx.lineWidth = 2;
+    if(signData.shape === 'circle'){
+      ctx.beginPath();
+      ctx.arc(0,-45,16,0,Math.PI*2);
+      ctx.fill(); ctx.stroke();
+    } else if(signData.shape === 'triangle'){
+      ctx.beginPath();
+      ctx.moveTo(0,-60);
+      ctx.lineTo(15,-38);
+      ctx.lineTo(-15,-38);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillRect(-15,-58,30,22);
+      ctx.strokeRect(-15,-58,30,22);
+    }
+
+    ctx.fillStyle = signData.textColor || '#000';
+    ctx.font = 'bold 9px Exo 2, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(signData.text, 0, -43);
+
+    ctx.restore();
+  }
+}
+
+const SIGN_STYLES = {
+  speed_limit_60:  {bg:'#fff',border:'#cc0000',textColor:'#000',shape:'circle',text:'60'},
+  speed_limit_80:  {bg:'#fff',border:'#cc0000',textColor:'#000',shape:'circle',text:'80'},
+  speed_limit_120: {bg:'#fff',border:'#cc0000',textColor:'#000',shape:'circle',text:'120'},
+  school_zone:     {bg:'#ffee00',border:'#333',textColor:'#333',shape:'triangle',text:'ESCUELA'},
+  speed_bump:      {bg:'#ffcc00',border:'#333',textColor:'#333',shape:'rect',text:'LOMITO'},
+  stop:            {bg:'#cc0000',border:'#fff',textColor:'#fff',shape:'rect',text:'PARE'},
+  yield:           {bg:'#fff',border:'#cc0000',textColor:'#cc0000',shape:'triangle',text:'CEDA'},
+  traffic_signal:  {bg:'#333',border:'#555',textColor:'#0f0',shape:'rect',text:'🚦'},
+  no_parking:      {bg:'#fff',border:'#cc0000',textColor:'#cc0000',shape:'circle',text:'E/'},
+  crosswalk:       {bg:'#0066cc',border:'#004499',textColor:'#fff',shape:'rect',text:'CRUCE'},
+  no_pass:         {bg:'#fff',border:'#cc0000',textColor:'#000',shape:'circle',text:'NO↑'},
+  curve_ahead:     {bg:'#ffee00',border:'#333',textColor:'#333',shape:'triangle',text:'CURVA'},
+  radar_ahead:     {bg:'#ff8800',border:'#cc5500',textColor:'#fff',shape:'rect',text:'RADAR'},
+  keep_right:      {bg:'#0066cc',border:'#0044aa',textColor:'#fff',shape:'rect',text:'→'},
+  no_stop:         {bg:'#fff',border:'#cc0000',textColor:'#cc0000',shape:'circle',text:'NO⊘'},
+  rural_cross:     {bg:'#ffee00',border:'#333',textColor:'#333',shape:'triangle',text:'CRUCE'},
+  highway_entry:   {bg:'#0066cc',border:'#004499',textColor:'#fff',shape:'rect',text:'RUTA'},
+  lane_change:     {bg:'#0066cc',border:'#004499',textColor:'#fff',shape:'rect',text:'CARRIL'},
+  intersection:    {bg:'#ffee00',border:'#333',textColor:'#333',shape:'triangle',text:'+'},
+};
+
+// ---- PHYSICS ----
+function updatePhysics(dt){
+  if(!G || G.paused || G.eventActive || G.gameOver) return;
+  const v = G.veh;
+  const keys = G.keys;
+  const env = G.env;
+
+  const accelKey = keys.ArrowUp || keys.w || keys.W;
+  const brakeKey = keys.ArrowDown || keys.s || keys.S;
+  const leftKey  = keys.ArrowLeft || keys.a || keys.A;
+  const rightKey = keys.ArrowRight || keys.d || keys.D;
+
+  const maxSpd = v.maxSpeed;
+
+  if(accelKey){
+    v.speed = Math.min(v.speed + v.accel * dt * 60, maxSpd);
+  } else if(brakeKey){
+    v.speed = Math.max(v.speed - v.brake * dt * 60, -30);
+  } else {
+    v.speed *= 0.97;
+    if(Math.abs(v.speed)<0.3) v.speed=0;
+  }
+
+  const turnRate = v.turn * (v.speed/maxSpd * 0.7 + 0.3) * dt * 60;
+  if(leftKey)  v.angle -= turnRate * 0.04;
+  if(rightKey) v.angle += turnRate * 0.04;
+
+  v.x += Math.sin(v.angle) * v.speed * dt;
+  v.y -= Math.cos(v.angle) * v.speed * dt;
+
+  // Camera smooth follow
+  G.cam.x += (v.x - G.cam.x) * 0.12;
+  G.cam.y += (v.y - G.cam.y) * 0.12;
+
+  // Distance
+  G.distance += Math.abs(v.speed) * dt;
+  G.time += dt;
+
+  // Check speed limit
+  checkSpeedLimit(v.speed, dt);
+
+  // NPC movement
+  updateNPCs(dt);
+
+  // Collision
+  if(G.invincible > 0) G.invincible -= 1;
+  else checkCollisions();
+
+  // Events
+  G.lastEventTime += dt * 1000;
+  if(!G.eventActive && G.lastEventTime > G.nextEventDelay){
+    triggerEvent();
+    G.lastEventTime = 0;
+    G.nextEventDelay = 6000 + Math.random()*10000;
+  }
+
+  // Notifications
+  processNotifs(dt);
+
+  // Red flash
+  if(G.flashRed > 0){
+    G.flashRed -= dt * 4;
+    document.getElementById('infraction-flash').style.background =
+      `rgba(255,50,50,${Math.max(0,G.flashRed) * 0.3})`;
+  }
+
+  G.frame = (G.frame||0)+1;
+}
+
+function checkSpeedLimit(speed, dt){
+  const limit = G.speedLimit;
+  const kmh = Math.abs(speed);
+  if(kmh > limit + 5){
+    G.speedingTimer += dt;
+    if(G.speedingTimer > 3 && !G.speedingFine){
+      G.speedingFine = true;
+      const excess = kmh - limit;
+      let fine = 2000;
+      if(excess > 40) fine = 10000;
+      else if(excess > 20) fine = 5000;
+      addFine(fine, `Exceso de velocidad (+${Math.round(excess)} km/h sobre límite de ${limit} km/h)`);
+      G.speedingTimer = 0;
+      setTimeout(()=>{ G.speedingFine = false; }, 8000);
+    }
+  } else {
+    G.speedingTimer = 0;
+  }
+}
+
+function updateNPCs(dt){
+  for(const npc of G.npcs){
+    npc.y += npc.dir * npc.speed * dt;
+    // Loop
+    if(npc.y > G.veh.y + 600) npc.y = G.veh.y - 600;
+    if(npc.y < G.veh.y - 600) npc.y = G.veh.y + 600;
+  }
+}
+
+function checkCollisions(){
+  const v = G.veh;
+  for(const npc of G.npcs){
+    const dx = v.x - npc.x;
+    const dy = v.y - npc.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist < (v.w/2 + npc.w/2 + 4)){
+      handleCrash();
+      return;
+    }
+  }
+}
+
+function handleCrash(){
+  G.lives--;
+  G.crashes++;
+  G.invincible = 120;
+  G.flashRed = 1;
+  G.veh.speed *= -0.3;
+  showNotif('💥 ¡CHOQUE!', 'Multa por daños: RD$5,000. Intercambia datos con el otro conductor y llama al 911.', 5000, false);
+  addFine(5000, 'Choque vehicular');
+  if(G.lives <= 0) endGame('crash');
+}
+
+// ---- EVENTS ----
+function triggerEvent(){
+  const pool = EVENT_POOL[G.envKey] || EVENT_POOL.ciudad;
+  const ev = pool[Math.floor(Math.random()*pool.length)];
+  G.eventActive = true;
+  G.veh.speed *= 0.3;
+
+  const popup = document.getElementById('event-popup');
+  document.getElementById('ep-icon').textContent = ev.icon;
+  document.getElementById('ep-title').textContent = ev.title;
+  document.getElementById('ep-body').textContent = ev.body;
+
+  const choice = document.getElementById('ep-choice');
+  choice.innerHTML = '';
+  document.getElementById('ep-feedback').style.display='none';
+  document.getElementById('ep-continue').style.display='none';
+
+  ev.choices.forEach((c,i)=>{
+    const btn = document.createElement('button');
+    btn.className='ep-btn';
+    btn.textContent = c.text;
+    btn.onclick = ()=> resolveEvent(ev, i, btn);
+    choice.appendChild(btn);
+  });
+
+  popup.style.display='block';
+}
+
+function resolveEvent(ev, choiceIdx, btn){
+  const chosen = ev.choices[choiceIdx];
+  document.querySelectorAll('.ep-btn').forEach(b=>b.disabled=true);
+
+  const fb = document.getElementById('ep-feedback');
+  fb.style.display='block';
+
+  if(chosen.correct){
+    fb.className='ep-feedback good';
+    fb.textContent = ev.goodFeedback;
+    G.score += ev.scoreBonus;
+    G.correctDecisions++;
+    showNotif('✓ ¡Decisión correcta!', ev.goodFeedback, 4000, true);
+  } else {
+    fb.className='ep-feedback bad';
+    fb.textContent = ev.badFeedback;
+    if(ev.fine > 0){
+      addFine(ev.fine, ev.title);
+    }
+    G.flashRed = 0.8;
+    showNotif('⚠️ Decisión incorrecta', ev.badFeedback, 4000, false);
+  }
+
+  document.getElementById('ep-continue').style.display='block';
+}
+
+function closeEvent(){
+  document.getElementById('event-popup').style.display='none';
+  G.eventActive = false;
+}
+
+// ---- UI HELPERS ----
+function addFine(amount, reason){
+  G.fines += amount;
+  G.score = Math.max(0, G.score - Math.floor(amount/20));
+  showNotif(`🚔 MULTA: RD$${amount.toLocaleString()}`, reason, 5000, false);
+  G.flashRed = 1;
+}
+
+let notifTimeout = null;
+function showNotif(title, body, duration, good){
+  const el = document.getElementById('notif');
+  el.innerHTML = `<div class="notif-card ${good?'good':''}">
+    <div class="notif-title">${title}</div>
+    <div class="notif-body">${body}</div>
+  </div>`;
+  el.style.display='block';
+  if(notifTimeout) clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(()=>{ el.style.display='none'; }, duration);
+}
+
+function processNotifs(dt){}
+
+function updateHUD(){
+  const v = G.veh;
+  const kmh = Math.round(Math.abs(v.speed));
+  document.getElementById('speedo').textContent = kmh;
+  document.getElementById('score-hud').textContent = G.score;
+  document.getElementById('fine-hud').textContent = 'RD$'+G.fines.toLocaleString();
+  document.getElementById('dist-val').textContent = Math.round(G.distance)+'m';
+  const mins = Math.floor(G.time/60);
+  const secs = Math.floor(G.time%60);
+  document.getElementById('time-val').textContent = mins+':'+(secs<10?'0':'')+secs;
+  document.getElementById('life-val').textContent = '❤️'.repeat(G.lives) || '💀';
+
+  // Speed color
+  const over = kmh > G.speedLimit;
+  document.getElementById('speedo').style.color = over ? '#ff5050' : '#f5c518';
+
+  // Zone badge
+  document.getElementById('zone-badge').textContent = G.env.name + ' · ' + G.speedLimit + ' km/h';
+
+  // Minimap
+  drawMinimap();
+}
+
+function drawMinimap(){
+  const mc = mctx;
+  mc.clearRect(0,0,120,90);
+  mc.fillStyle='rgba(10,20,30,0.8)';
+  mc.fillRect(0,0,120,90);
+
+  const road = G.road;
+  const veh = G.veh;
+  const scale = 0.08;
+  const cx = 60, cy = 45;
+
+  mc.strokeStyle='#555';
+  mc.lineWidth=4;
+  mc.beginPath();
+  for(let i=0;i<road.length;i++){
+    const rx = cx + (road[i].x - veh.x)*scale;
+    const ry = cy + (road[i].y - veh.y)*scale;
+    if(i===0) mc.moveTo(rx,ry);
+    else mc.lineTo(rx,ry);
+  }
+  mc.stroke();
+
+  // NPCs
+  for(const npc of G.npcs){
+    mc.fillStyle='#cc4444';
+    mc.fillRect(cx+(npc.x-veh.x)*scale-2, cy+(npc.y-veh.y)*scale-2, 4,4);
+  }
+
+  // Player
+  mc.fillStyle='#f5c518';
+  mc.beginPath();
+  mc.arc(cx,cy,4,0,Math.PI*2);
+  mc.fill();
+}
+
+// ---- ZONE TRANSITIONS ----
+function showZoneTransition(name, limit){
+  const el = document.getElementById('zone-transition');
+  const n = document.getElementById('zone-name-big');
+  const l = document.getElementById('zone-limit-big');
+  n.textContent = name;
+  l.textContent = 'Límite: ' + limit + ' km/h';
+  el.classList.add('show');
+  n.style.opacity='1'; l.style.opacity='1';
+  setTimeout(()=>{
+    n.style.opacity='0'; l.style.opacity='0';
+    setTimeout(()=>{ el.classList.remove('show'); }, 400);
+  }, 2000);
+}
+
+// ---- GAME FLOW ----
+let animId;
+
+function gameLoop(ts){
+  if(!G || G.gameOver) return;
+  const dt = Math.min((ts - (G.lastTs||ts))/1000, 0.05);
+  G.lastTs = ts;
+
+  if(!G.paused && !G.gameOver){
+    updatePhysics(dt);
+    drawGame();
+  }
+  animId = requestAnimationFrame(gameLoop);
+}
+
+let selectedEnv = 'barrio';
+let selectedVehicle = 'carro';
+
+function selectEnv(card){
+  document.querySelectorAll('.env-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedEnv = card.dataset.env;
+}
+
+function selectVehicle(id, card){
+  document.querySelectorAll('.veh-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedVehicle = id;
+}
+
+function startGame(){
+  cancelAnimationFrame(animId);
+  G = makeGame(selectedEnv, selectedVehicle);
+  G.frame = 0;
+
+  // Position car at start of road
+  const startPt = G.road[5];
+  G.veh.x = startPt.x;
+  G.veh.y = startPt.y + 50;
+  G.cam.x = G.veh.x;
+  G.cam.y = G.veh.y;
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('pause-screen').classList.add('hidden');
+  document.getElementById('event-popup').style.display='none';
+  document.getElementById('notif').style.display='none';
+
+  showZoneTransition(G.env.name, G.speedLimit);
+
+  requestAnimationFrame(ts=>{ G.lastTs=ts; gameLoop(ts); });
+}
+
+function endGame(reason){
+  G.gameOver = true;
+  cancelAnimationFrame(animId);
+
+  const score = G.score;
+  const rank = score>=500?'S':score>=350?'A':score>=200?'B':score>=100?'C':'D';
+
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-dist').textContent = Math.round(G.distance)+'m';
+  document.getElementById('go-fines').textContent = 'RD$'+G.fines.toLocaleString();
+  document.getElementById('go-crashes').textContent = G.crashes;
+  document.getElementById('go-correct').textContent = G.correctDecisions;
+  document.getElementById('go-rank').textContent = rank;
+
+  const lessons = {
+    crash: '💡 Recuerda: ante un accidente, detén el vehículo, enciende las luces de emergencia y llama al 911. Darse a la fuga es un delito penal en R.D.',
+    time: '💡 ¡Bien conducido! Revisa tu desempeño y trata de reducir las multas en tu próxima salida.',
+  };
+  document.getElementById('go-lesson').textContent = lessons[reason] || lessons.time;
+
+  document.getElementById('gameover-screen').classList.remove('hidden');
+}
+
+function resumeGame(){
+  G.paused = false;
+  document.getElementById('pause-screen').classList.add('hidden');
+  requestAnimationFrame(ts=>{ G.lastTs=ts; gameLoop(ts); });
+}
+
+function goToMenu(){
+  cancelAnimationFrame(animId);
+  G = null;
+  document.getElementById('start-screen').classList.remove('hidden');
+  document.getElementById('pause-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('event-popup').style.display='none';
+}
+
+// ---- INPUT ----
+window.addEventListener('keydown',e=>{
+  if(G) G.keys[e.key]=true;
+  if(e.key==='p'||e.key==='P'){
+    if(!G||G.gameOver) return;
+    if(G.paused){
+      resumeGame();
+    } else {
+      G.paused=true;
+      document.getElementById('pause-screen').classList.remove('hidden');
+    }
+  }
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup',e=>{ if(G) G.keys[e.key]=false; });
+
+// Mobile touch controls
+let touchStartX=null,touchStartY=null;
+let activeTouches={};
+window.addEventListener('touchstart',e=>{
+  for(const t of e.changedTouches){
+    const x=t.clientX, y=t.clientY;
+    if(y < H*0.5){
+      if(!G) return;
+      G.keys.ArrowUp = true;
+    }
+  }
+},{passive:true});
+window.addEventListener('touchend',e=>{
+  if(G){ G.keys.ArrowUp=false; G.keys.ArrowLeft=false; G.keys.ArrowRight=false; }
+},{passive:true});
+
+// Score tick
+setInterval(()=>{
+  if(G && !G.paused && !G.eventActive && !G.gameOver){
+    const kmh = Math.abs(G.veh.speed);
+    if(kmh > 5 && kmh <= G.speedLimit + 3){
+      G.score += 1;
+    }
+  }
+}, 500);
+
+// Game timeout (3 minutes)
+setInterval(()=>{
+  if(G && !G.gameOver && G.time > 180){
+    endGame('time');
+  }
+},1000);
+</script>
+</body>
+</html>
