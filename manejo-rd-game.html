@@ -289,7 +289,7 @@ const ENVS = {
     description:'Calles estrechas de barrio dominicano',
     musicTone:'merengue',
     elements:['school','speed_bump','pedestrian_cross'],
-    trafficDensity:0.6, roadWidth:80
+    trafficDensity:0.6, roadWidth:200
   },
   ciudad: {
     name:'CIUDAD', label:'Santo Domingo · Av. 27 de Febrero', speedLimit:60,
@@ -299,7 +299,7 @@ const ENVS = {
     description:'Avenidas de la capital con semáforos',
     musicTone:'bachata',
     elements:['traffic_light','crosswalk','intersection'],
-    trafficDensity:0.8, roadWidth:140
+    trafficDensity:0.8, roadWidth:260
   },
   carretera: {
     name:'CARRETERA', label:'Carretera Duarte', speedLimit:80,
@@ -309,7 +309,7 @@ const ENVS = {
     description:'Carretera nacional con curvas y cruces',
     musicTone:'perico_ripiao',
     elements:['curve_warning','no_pass','rural_cross'],
-    trafficDensity:0.4, roadWidth:120
+    trafficDensity:0.4, roadWidth:240
   },
   autopista: {
     name:'AUTOPISTA', label:'Autopista Las Américas', speedLimit:120,
@@ -319,7 +319,7 @@ const ENVS = {
     description:'Alta velocidad · Radares y multas',
     musicTone:'dembow',
     elements:['radar','lane_change','highway_entry'],
-    trafficDensity:0.5, roadWidth:200
+    trafficDensity:0.5, roadWidth:320
   }
 };
 
@@ -414,48 +414,44 @@ function buildRoad(env){
 
 function buildNPCs(env, road){
   const npcs = [];
-  const density = env.trafficDensity;
   const colors = ['#cc4444','#4444cc','#44cc44','#cccc44','#cc8844','#888888','#cc44cc'];
 
-  const count = Math.floor(30 * density);
+  const TOTAL_RANGE = 2400;
+  const NPC_COUNT   = 14;
 
-  for(let i = 0; i < count; i++){
+  const seg0 = road[Math.floor(road.length / 2)];
+  if(!seg0) return npcs;
 
-    // Posición a lo largo de la carretera
-    const ri = Math.floor((i / count) * (road.length - 10)) + 5;
-    const seg = road[Math.min(ri, road.length - 1)];
+  const slots = [];
+  for(let i = 0; i < NPC_COUNT; i++){
+    slots.push({ isPair: Math.random() < 0.2, useRight: Math.random() < 0.5 });
+  }
 
-    if (!seg || !isFinite(seg.x) || !isFinite(seg.w)) continue;
+  let npcIdx = 0;
+  for(let i = 0; i < NPC_COUNT; i++){
+    const slot = slots[i];
+    const baseOffset = -1200 + (i / NPC_COUNT) * TOTAL_RANGE;
+    const laneWidth = seg0.w / 7;
 
-    // Carriles discretos (igual que player)
-    const lanes = [-1, 0, 1];
-    const lane = lanes[Math.floor(Math.random() * lanes.length)];
-
-    // Dirección
-    const isSameDir = Math.random() < 0.7;
-    const dir = isSameDir ? -1 : 1;
-
-    // Posición coherente con carretera
-    const x = seg.x + lane * (seg.w * 0.3);
-
-    // Posición Y (IMPORTANTE: distribuirlos bien en el mapa)
-    const y = seg.y;
-
-    // Ángulo coherente con tu fix actual (v.angle = 0)
-    const angle = dir === -1 ? 0 : Math.PI;
-
-    npcs.push({
-      x,
-      y,
-      lane,
-      speed: 20 + Math.random() * 40,
-      dir,
-      w: 22,
-      h: 40,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      angle,
-      id: i
-    });
+    if(slot.isPair){
+      const lanes = slot.useRight ? [1, 2, 3] : [-1, -2,-3];
+      const pairColor = colors[Math.floor(Math.random() * colors.length)];
+      for(const lane of lanes){
+        const dir = lane > 0 ? -1 : 1;
+        npcs.push({ x: seg0.x + lane * laneWidth, y: seg0.y + baseOffset,
+          baseOffset, lane, speed: 25 + Math.random() * 20, dir,
+          w: 22, h: 40, color: pairColor,
+          angle: dir === -1 ? -Math.PI/2 : Math.PI/2, id: npcIdx++ });
+      }
+    } else {
+      const allLanes = [-3,-2, -1, 1, 2,3];
+      const lane = allLanes[Math.floor(Math.random() * allLanes.length)];
+      const dir  = lane > 0 ? -1 : 1;
+      npcs.push({ x: seg0.x + lane * laneWidth, y: seg0.y + baseOffset,
+        baseOffset, lane, speed: 25 + Math.random() * 20, dir,
+        w: 22, h: 40, color: colors[Math.floor(Math.random() * colors.length)],
+        angle: dir === -1 ? -Math.PI/2 : Math.PI/2, id: npcIdx++ });
+    }
   }
 
   return npcs;
@@ -716,17 +712,31 @@ function drawRoad(){
   }
   ctx.stroke();
 
-  // Road lanes / center line
-  ctx.strokeStyle = env.lineColor;
-  ctx.lineWidth = 3;
-  ctx.setLineDash([30,20]);
-  ctx.lineDashOffset = -G.distance * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(road[0].x, road[0].y);
-  for(let i=1;i<road.length;i++){
-    ctx.lineTo(road[i].x, road[i].y);
+  // Lane divider lines: 7 carriles (-3 a +3), líneas en -3,-2,-1,0,1,2,3
+  const laneOffsets = [-3, -2, -1, 0, 1, 2, 3];
+
+  for(const offsetMult of laneOffsets){
+    const isCenterLine = offsetMult === 0;
+    ctx.strokeStyle = isCenterLine ? (env.lineColor) : 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = isCenterLine ? 3 : 1.5;
+
+    if(isCenterLine){
+      ctx.setLineDash([]);
+    } else {
+      ctx.setLineDash([28, 18]);
+      ctx.lineDashOffset = -G.distance * 0.5;
+    }
+
+    ctx.beginPath();
+    for(let i = 0; i < road.length; i++){
+      const seg = road[i];
+      const lw = seg.w / 7;
+      const px = seg.x + offsetMult * lw;
+      if(i === 0) ctx.moveTo(px, seg.y);
+      else        ctx.lineTo(px, seg.y);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
   ctx.setLineDash([]);
 
   // Draw zone markers (school, etc.)
@@ -930,32 +940,33 @@ function updatePhysics(dt){
     }
   }
 
-  G.targetLane = Math.max(-1, Math.min(1, G.targetLane));
+  G.targetLane = Math.max(-3, Math.min(3, G.targetLane));
   G.laneCooldown--;
 
   const maxSpd = v.maxSpeed;
 
 
   // Carriles
-  const roadWidth = G.env.roadWidth * 0.6;
  const seg = getNearestRoadSegment(v.y);
 
   if (!seg || !isFinite(seg.x) || !isFinite(seg.w)) {
     console.warn("Segmento inválido:", seg);
-    return; // evita contaminar todo con NaN
+    return;
   }
 
-  const lane = isFinite(G.targetLane) ? G.targetLane : 0;
+  // 7 carriles reales (-3 a +3)
+  const laneWidth = seg.w / 7;
 
-  const targetX = seg.x + lane * (seg.w * 0.3);
+  // usar TU variable (no random)
+  const lane = Math.max(-3, Math.min(3, G.targetLane));
 
+  // posición objetivo
+  const targetX = seg.x + lane * laneWidth;
+
+  // interpolación suave
   if (isFinite(targetX)) {
     v.x += (targetX - v.x) * 0.12;
-  } else {
-    console.warn("targetX inválido:", targetX);
   }
-
-  v.x += (targetX - v.x) * 0.12;
 
   // Limitar carretera
   const maxOffset = (G.env.roadWidth * 0.5) - 20;
@@ -986,7 +997,9 @@ function updatePhysics(dt){
 
   // Movimiento forward (IMPORTANTE)
   v.angle = 0;
-  v.y -= v.speed * dt;
+  const WORLD_SPEED = 3.5; // ajustable
+  v.y -= v.speed * dt * WORLD_SPEED;
+  
 
   // Camera smooth follow
   G.cam.x += (v.x - G.cam.x) * 0.12;
@@ -1048,12 +1061,30 @@ function checkSpeedLimit(speed, dt){
 }
 
 function updateNPCs(dt){
+  const TOTAL_RANGE = 2400; // debe coincidir con buildNPCs
+  const HALF = TOTAL_RANGE / 2;
+
   for(const npc of G.npcs){
     npc.y += npc.dir * npc.speed * dt;
-    // Loop NPCs around player
-    if(npc.y > G.veh.y + 800) npc.y = G.veh.y - 800;
-    if(npc.y < G.veh.y - 800) npc.y = G.veh.y + 800;
-    // Ensure angle always matches direction (in case of reset)
+
+    // Calcular cuánto se alejó del offset ideal respecto al jugador
+    // offset ideal = G.veh.y + npc.baseOffset
+    const ideal = G.veh.y + npc.baseOffset;
+    const diff  = npc.y - ideal;
+
+    // Si se alejó más de medio rango en cualquier dirección → volver al slot
+    if(diff > HALF || diff < -HALF){
+      npc.y = ideal;
+    }
+
+    // X: seguir la carretera en su posición Y actual
+    const seg = getNearestRoadSegment(npc.y);
+    if(seg && isFinite(seg.x) && isFinite(seg.w)){
+      const laneWidth = seg.w / 7;
+      const targetX = seg.x + npc.lane * laneWidth;
+      npc.x += (targetX - npc.x) * 0.08;
+    }
+
     npc.angle = npc.dir === -1 ? -Math.PI/2 : Math.PI/2;
   }
 }
@@ -1061,10 +1092,12 @@ function updateNPCs(dt){
 function checkCollisions(){
   const v = G.veh;
   for(const npc of G.npcs){
-    const dx = v.x - npc.x;
-    const dy = v.y - npc.y;
-    const dist = Math.sqrt(dx*dx+dy*dy);
-    if(dist < (v.w/2 + npc.w/2 + 4)){
+    const dx = Math.abs(v.x - npc.x);
+    const dy = Math.abs(v.y - npc.y);
+    // AABB: solo choca si los rectángulos se solapan en ambos ejes
+    const overlapX = dx < (v.w/2 + npc.w/2 - 2);
+    const overlapY = dy < (v.h/2 + npc.h/2 - 4);
+    if(overlapX && overlapY){
       handleCrash();
       return;
     }
@@ -1382,10 +1415,10 @@ window.addEventListener('keydown', e=>{
   if(!G) return;
 
   if(e.key === "ArrowLeft"){
-    G.targetLane = Math.max(-1, G.targetLane - 1);
+    G.targetLane = Math.max(-3, G.targetLane - 1);
   }
   if(e.key === "ArrowRight"){
-    G.targetLane = Math.min(1, G.targetLane + 1);
+    G.targetLane = Math.min(3, G.targetLane + 1);
   }
 
   G.keys[e.key] = true;
