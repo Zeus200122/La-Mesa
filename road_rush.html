@@ -33,8 +33,10 @@
     background: rgba(0,0,0,0.88);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    color: #fff; z-index: 20;
+    color: #fff; z-index: 25;
     font-family: Arial, sans-serif;
+    pointer-events: all;
+    touch-action: manipulation;
   }
   #overlay h1 {
     font-size: 52px; font-weight: 900; letter-spacing: 5px;
@@ -51,8 +53,14 @@
     cursor: pointer; letter-spacing: 2px;
     box-shadow: 0 0 30px #FFD70055;
     transition: transform .1s, box-shadow .1s;
+    pointer-events: all;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+    user-select: none;
+    touch-action: manipulation;
+    position: relative;
+    z-index: 30;
   }
-  #startBtn:hover { transform: scale(1.06); box-shadow: 0 0 50px #FFD700aa; }
+  #startBtn:active { transform: scale(0.96); background: #e6c200; }
 
   #livesBox {
     position: fixed; top: 18px; left: 18px;
@@ -75,7 +83,7 @@
     Arrastra el mouse o desliza el dedo<br>
     para cambiar de carril
   </div>
-  <button id="startBtn" onclick="startGame()">▶ JUGAR</button>
+  <button id="startBtn">▶ JUGAR</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -429,6 +437,23 @@ function loop(now) {
 }
 
 requestAnimationFrame(loop);
+
+// ── Button wiring (works on mobile & desktop) ─────────────────────────────
+const btn = document.getElementById('startBtn');
+function onBtnActivate(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  startGame();
+}
+btn.addEventListener('click', onBtnActivate);
+btn.addEventListener('touchend', onBtnActivate, { passive: false });
+
+// Prevent overlay from stealing drag events meant for the game
+const overlay = document.getElementById('overlay');
+overlay.addEventListener('touchstart', e => e.stopPropagation(), { passive: false });
+overlay.addEventListener('touchmove', e => e.stopPropagation(), { passive: false });
+overlay.addEventListener('mousedown', e => e.stopPropagation());
+overlay.addEventListener('mousemove', e => e.stopPropagation());
 </script>
 </body>
 </html>
