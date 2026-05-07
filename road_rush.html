@@ -662,7 +662,7 @@ function checkNearMiss(){
       o.passed=true; comboCount++; nearMisses++;
       showCombo(comboCount);
       score+=comboCount*50; updateScore();
-      flashScreen('#ffffff',40);
+      //flashScreen('#ffffff',40);
       feverLevel=Math.min(100,feverLevel+14);
     }
   }
@@ -802,7 +802,7 @@ function loop(now){
     });
     updateParticles();
     checkNearMiss();
-    if(invincible>0){ invincible--; player.visible=Math.floor(invincible/7)%2===0; } else player.visible=true;
+    if(invincible>0){ invincible--; } else player.visible=true;
     const hitResult=checkHit();
     if(hitResult.hit) loseLife(hitResult.isPeaton);
   }
